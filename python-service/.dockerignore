@@ -1,0 +1,9 @@
+app/__pycache__/
+python-service/DownloadFile/config.json
+python-service/DownloadFile/base_webscraper.py
+python-service/DownloadFile/envato_webscraper.py
+python-service/DownloadFile/freepik_webscraper.py
+app/Tests/
+app/__pycache__/
+app/DownloadFile/__pycache__/
+.dockerignore

@@ -1,0 +1,10 @@
+# cronjob file (runs at midnight every day)
+# Minute (0): The minute of the hour the task will run. 0 means it will run at the start of the hour (00 minutes).
+# Hour (0): The hour of the day the task will run. 0 means it will run at midnight (00:00).
+# Day of the Month (*): The day of the month the task will run. * means any day of the month.
+# Month (*): The month the task will run. * means any month.
+# Day of the Week (*): The day of the week the task will run. * means any day of the week.
+# In this case, 0 0 * * * means "run the task at midnight every day."
+
+# Run cleanup.py at midnight every day and log output to cron.log
+0 0 * * * python /usr/src/python-service/app/cleanup.py >> /usr/src/python-service/app/cron.log 2>&1

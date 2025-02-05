@@ -1,0 +1,14 @@
+Construir la Imagen de Docker:
+docker compose build
+
+Ejecutar el Contenedor de Docker:
+docker compose up
+
+(Para ejecutar en segundo plano, añade el flag -d):
+docker compose up -d
+
+Limpiar Contenedores e Imágenes:
+docker compose down --rmi all
+
+Rebuild y Run (Combina build y up):
+docker compose up --build
