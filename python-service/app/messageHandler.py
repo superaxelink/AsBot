@@ -59,8 +59,8 @@ class MessageHandler:
 
             if not self.qa_pairs:
                 self.qa_pairs = {
-                    "HOla, buen día": ("Hola, buen día. ¿Cómo estas? ¿Cómo puedo ayudarte?", False),
-                    "¿Dónde encuentro la política de privacidad?": ("La política de privacidad está en el pie de página.", False),
+                    "HOla, buen día": "Hola, buen día. ¿Cómo estas? ¿Cómo puedo ayudarte?",
+                    "¿Dónde encuentro la política de privacidad?": "La política de privacidad está en el pie de página.",
                     "!me" : (self.__handle_me, True),
                     "!buy": (self.__handle_buy, False)
                 }
@@ -91,24 +91,27 @@ class MessageHandler:
         # check all the update patterns to check for a coincidence
         pattern_name, pattern, matched = self.__check_pattern_match(message)
         #if message is !me process it like this
-
+        # if message matches the pattern then process it like this
         ans = self.get_answer(message,requester_id, nickname)
+        
+        if ans is not None:
+            return ans
+        elif ans is None and re.match(self.patternPages,message):
+            return self.__handle_file_download_request(requester_id,message)
+        elif ans is None and  pattern_name:
+            return self.__handle_db_requests(requester_id, pattern_name, pattern, matched)   
+        #elif ans is None and message == "configure":
+
+        else:
+            return "No sé la respuesta a eso."
+            #return "Tenemos un problema, intentalo de nuevo más tarde"
 
         #if message == "!me": 
         #    return self.__handle_me(requester_id,nickname)
         #if message is !buy process it like this
         #elif message == "!buy":
         #    return self.__handle_buy()
-        
-        
-        # if message matches the pattern then process it like this
-        if ans is None and re.match(self.patternPages,message):
-            return self.__handle_file_download_request(requester_id,message)
-        elif ans is None and  pattern_name:
-            return self.__handle_db_requests(requester_id, pattern_name, pattern, matched)   
-        else:
-            #return "Tenemos un problema, intentalo de nuevo más tarde"
-            return "No sé la respuesta a eso."
+
 
     def __handle_db_requests(self,requester_id, pattern_name, pattern, matched):
         try:
@@ -282,19 +285,24 @@ class MessageHandler:
         keywords = [token.lemma_ for token in doc if token.pos_ in ["NOUN", "VERB"]]
         return " ".join(keywords)
 
+    # Verificar si el valor es una función y si es callable
+    def __get_value_from_dict(self,value,*args):
+        if isinstance(value,tuple) and callable(value[0]):
+            if value[1]:  # Si requiere parámetros
+                return value[0](*args)  # Llamar con los parámetros
+            else:
+                return value[0]()  # Llamar sin parámetros si no hay
+        else:
+            return value  # Retornar el valor directo si no es una función
+
     def __get_answer_with_difflib(self, question, *args):
         closest_match = difflib.get_close_matches(question, self.qa_pairs.keys(), n=1, cutoff=0.6)
         if closest_match:
             #return self.qa_pairs[closest_match[0]]
             value = self.qa_pairs[closest_match[0]]
             # Verificar si el valor es una función y si es callable
-            if isinstance(value,tuple) and callable(value[0]):
-                if value[1]:  # Si requiere parámetros
-                    return value[0](*args)  # Llamar con los parámetros
-                else:
-                    return value[0]()  # Llamar sin parámetros si no hay
-            else:
-                return value  # Retornar el valor directo si no es una función
+            return_value = self.__get_value_from_dict(value, *args)
+            return return_value
         return None
 
     def __get_answer_with_cosine_similarity(self, question, *args):
@@ -310,13 +318,8 @@ class MessageHandler:
             matched_question = self.questions[most_similar_index]
             value = self.qa_pairs[matched_question]
             # Verificar si el valor es una función y si es callable
-            if isinstance(value,tuple) and callable(value[0]):
-                if value[1]:  # Si requiere parámetros
-                    return value[0](*args)  # Llamar con los parámetros
-                else: # no requiere parametros
-                    return value[0]()  # Llamar sin parámetros si no son necesarios
-            else:
-                return value  # Retornar el valor directo si no es una función
+            return_value = self.__get_value_from_dict(value, *args)
+            return return_value
         return None
 
     def qa_to_json_excel_url(self,url):
@@ -359,6 +362,19 @@ class MessageHandler:
         # Si no se encuentra una respuesta
         return None
 
+###########################################################################
+
+    def valid_url(url):
+
+        try:
+            result = urlparse(url)
+        #verifies if scheme and hostname (netloc) are present in the resulting analysis.
+            return all([result.scheme, result.netloc])
+        except:
+            return False
+        
+###################################################################### Probably unused functions
+
     def set_qa_pairs_string(self, message):
 
         #generic_message_pair_list = message.split(",")
@@ -377,6 +393,7 @@ class MessageHandler:
             value = f"{pair[1]}"
             self.generic_message_pair_dict[key] = value
 
+
     def get_qa_pairs(self, message):
 
         response = self.generic_message_pair_dict.get(message, None)
@@ -385,13 +402,3 @@ class MessageHandler:
             return response
 
         return "Error"
-
-###########################################################################
-
-    def valid_url(url):
-        try:
-            result = urlparse(url)
-        #verifies if scheme and hostname (netloc) are present in the resulting analysis.
-            return all([result.scheme, result.netloc])
-        except:
-            return False
