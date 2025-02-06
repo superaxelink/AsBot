@@ -46,6 +46,9 @@ class MessageHandler:
         self.patternPages = r"^(https://)?(www\.)?(elements\.)?(freepik|envato)\.(com|es)(/.*)?$"
         # Cargar el modelo de lenguaje en español
         self.nlp = spacy.load("es_core_news_sm")
+
+        self.excel_url = ""
+
         # qa pairs
         self.qa_pairs = {}
 
@@ -93,18 +96,28 @@ class MessageHandler:
         #if message is !me process it like this
         # if message matches the pattern then process it like this
         ans = self.get_answer(message,requester_id, nickname)
-        
-        if ans is not None:
-            return ans
-        elif ans is None and re.match(self.patternPages,message):
-            return self.__handle_file_download_request(requester_id,message)
-        elif ans is None and  pattern_name:
-            return self.__handle_db_requests(requester_id, pattern_name, pattern, matched)   
-        #elif ans is None and message == "configure":
 
-        else:
-            return "No sé la respuesta a eso."
-            #return "Tenemos un problema, intentalo de nuevo más tarde"
+        #pattern = r'configure\s*\{(https?://[^\s{}]+)\}'
+        pattern = r'configure\s*\s*(https?://)?([^\s{}]+)\s*'
+        url_pattern_match = re.search(pattern, message)
+
+        try:
+            if ans is not None:
+                return ans
+            elif ans is None and re.match(self.patternPages,message):
+                return self.__handle_file_download_request(requester_id,message)
+            elif ans is None and  pattern_name:
+                return self.__handle_db_requests(requester_id, pattern_name, pattern, matched)   
+            elif ans is None and url_pattern_match:
+                url = (url_pattern_match.group(1) or '') + url_pattern_match.group(2)
+                self.qa_to_json_excel_url(self,url)
+                self.set_qa_pairs_excel()
+                return 'Se ha actualizado el catalogo de preguntas y respuestas'
+            else: 
+                return "No sé la respuesta a eso."
+        except Error as e:
+            logging.error(f"Error ocurred: {e}")
+            return "Tenemos un problema, intentalod de nuevo mas tarde."
 
         #if message == "!me": 
         #    return self.__handle_me(requester_id,nickname)
@@ -342,11 +355,15 @@ class MessageHandler:
             return "No se pudo completar la acción. Intentelo de nuevo más tarde."
 
     def set_qa_pairs_json(self):
-        with open(self.qa_file_route, 'r', encoding='utf-8') as f:
-            self.qa_pairs = json.load(f)
-        
-        self.questions = list(self.qa_pairs.keys())
-        self.tfidf_matrix = self.vectorizer.fit_transform(self.questions)
+        try:
+            with open(self.qa_file_route, 'r', encoding='utf-8') as f:
+                self.qa_pairs = json.load(f)
+            
+            self.questions = list(self.qa_pairs.keys())
+            self.tfidf_matrix = self.vectorizer.fit_transform(self.questions)
+        except Error as e:
+            logging.error(f"Error ocurred: {e}")
+            return "No se pudo completar la acción. Intentelo de nuevo más tarde."
 
     def get_answer(self,question,*args):
         # Primero intenta con Difflib
