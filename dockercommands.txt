@@ -12,3 +12,13 @@ docker compose down --rmi all
 
 Rebuild y Run (Combina build y up):
 docker compose up --build
+
+Eliminar todos los volumenes
+sudo docker compose down -v
+sudo docker volume prune
+
+# Liberar puerto 80
+sudo lsof -i :80
+
+# Borrar docker cache
+sudo docker builder prune

@@ -27,9 +27,9 @@ url = 'https://docs.google.com/spreadsheets/d/1zfaBTOvK02q7sxSLK3-tq4zgJxmmUvhGe
 
 mHandler = MessageHandler()
 
-mHandler.qa_to_json_excel_url(url)
+mHandler.qa_excel_to_json_url(url)
 
-mHandler.set_qa_pairs_json()
+mHandler.set_qa_pairs_from_json()
 
 ans = mHandler.get_answer('taco')
 

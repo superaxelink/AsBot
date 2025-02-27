@@ -19,6 +19,7 @@ function getResponse(ws, name, number=null, dataToUpdate=null, message, callback
         phoneNumber: number,
         name: name
     };
+    console.log("mensaje de control 1");
     //Add data to update given if exists
     if(dataToUpdate){
         dataToSend['updateData'] = dataToUpdate
@@ -46,37 +47,53 @@ async function messageHandler(client, ws, pattern, patternsDict, message) {
     const name = contact.pushname || contact.verifiedName || 'No Name';
     const number = contact.number;
 
+    ////////////////////////////
+    const DEBUG_MODE = true; // Activa o desactiva el modo debug
+    ///////////////////////////
+
     //check if the message matches with some of the patterns for user functions
     const checkedPattern = checkPatternMatch(message.body, patternsDict);
 
-    //console.log(message);
+    console.log(message.body);
+
+    //////////////////////////////
+    //if (!DEBUG_MODE && message.fromMe) return; // En modo normal, ignorar mensajes del bot
+    //if (message.fromMe) return; // En modo normal, ignorar mensajes del bot
+
+    console.log(`Mensaje recibido de ${message.from}: ${message.body}`);
+    ///////////////////////////////////////////
+
+
+    getResponse(ws, name, number, null, message, async (response) => {
+        message.reply(response);
+    });
 
     // User queries for information
-    if (message.body === '!me' || message.body === '!buy') {
-        getResponse(ws, name, number, null, message, async (response) => {
-            message.reply(response);
-        });
-    // user queries for download
-    } else if (pattern.test(message.body)) {
-        getResponse(ws, name, number, null, message, async (response) => {
-            if(chat.isGroup){
-                const privateChat = await contact.getChat();
-                await client.sendMessage(privateChat.id._serialized, response);
-            }else{
-                message.reply(response);
-            }
-        });
-    //admin functions or invalid messages
-    } else if (checkedPattern.length !== 0 && !chat.isGroup) {
-        if (checkedPattern[1] !== "updateFullUser") {
-            const userUpdateValue = checkedPattern[0][1];
-            const userId = checkedPattern[0][2];
-            const dataToUpdate = [userUpdateValue, userId];
-            getResponse(ws, name, number, dataToUpdate, message, async (response) => {
-                message.reply(response);
-            });
-        }
-    }
+    // if (message.body === '!me' || message.body === '!buy') {
+    //     getResponse(ws, name, number, null, message, async (response) => {
+    //         message.reply(response);
+    //     });
+    // // user queries for download
+    // } else if (pattern.test(message.body)) {
+    //     getResponse(ws, name, number, null, message, async (response) => {
+    //         if(chat.isGroup){
+    //             const privateChat = await contact.getChat();
+    //             await client.sendMessage(privateChat.id._serialized, response);
+    //         }else{
+    //             message.reply(response);
+    //         }
+    //     });
+    // //admin functions or invalid messages
+    // } else if (checkedPattern.length !== 0 && !chat.isGroup) {
+    //     if (checkedPattern[1] !== "updateFullUser") {
+    //         const userUpdateValue = checkedPattern[0][1];
+    //         const userId = checkedPattern[0][2];
+    //         const dataToUpdate = [userUpdateValue, userId];
+    //         getResponse(ws, name, number, dataToUpdate, message, async (response) => {
+    //             message.reply(response);
+    //         });
+    //     }
+    // }
 }
 
 module.exports = {

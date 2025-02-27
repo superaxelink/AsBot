@@ -25,6 +25,8 @@ async def handle_client(websocket, path):
                 #re.search(pattern, message_data.get("phoneNumber")).group(1)
                 #Get the user nickname
                 profile_name = message_data.get("name")
+                print('a')
+                logging.info('a')
                 response_message = mHandler.process_message(
                     incoming_message, 
                     from_number, 
