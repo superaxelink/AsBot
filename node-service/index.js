@@ -116,6 +116,19 @@ async function initializeClient() {
         }
         ////////////////////////
 
+        console.log(message.body);
+        console.log("its from me")
+        console.log(!message.fromMe)
+        console.log("Goes to me")
+        console.log(!message.to === botId)
+
+        //////////////////////////////
+        //if (DEBUG_MODE && !message.fromMe && message.to !== botId) {
+        if (DEBUG_MODE && (message.from !== botId || message.to !== botId)) {
+            console.log("Mensaje ignorado para no molestar");
+            return;
+        }
+
         await messageHandler(client, ws, pattern, patternsDict, message);
     });
 

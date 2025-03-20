@@ -1,33 +1,10 @@
 {
     "errors": {
-        "impossible_to_login": "Impossible to login, verify credentials or connection",
-        "cant_load_session": "Can't load session, verify credentials, cookies and connection",
-        "cant_download_file": "Can't download the file ¿Is this one of our services link?",
-        "cant_delete_file": "No se pudo borrar el archivo/directorio:",
-        "unable_to_login": "Unable to login: %s",
-        "error" : "Error:",
-        "check_credentials_and_connection": "Verify link, credentials and connection:",
-        "not_found_elements":"Elements not found",
-        "cookies_not_working": "The page's cookies are not working:",
-        "download_timeout": "Download timeout"
+        "noArgumentsResponse": "Se esperaba al menos un argumento, pero no se recibió ninguno.",
+        "emptyIncorrectUrl": "Se esperaba al menos un argumento, pero no se recibió ninguno.",
+        "cantCompleteRequest": "No se pudo completar la solicitud, intentalo de nuevo mas tarde."
     },
     "return_message": {
-        "connection_problems": "Tenemos problemas de conexión, por favor intentalo de nuevo más tarde",
-        "some_problem_ocurred": "Parece que tenemos un problema, por favor intentalo de nuevo más tarde",
-        "valid_link": "Parece que el link es incorrecto, por favor proporciona un link valido.",
-        "successful_download": "Gracias por la espera, aqui tienes el archivo solicitado.",
-        "welcome": "Welcome to the application!",
-        "exit": "Thank you for using the application!"
-    },
-    "log_message":{
-        "download_complete": "Download is complete."
-    },
-    "folder_names":{
-        "main_downloads_folder":"downloads"
-    },
-    "cookies_file_names":{
-        "envato":"cookiesEnvato.pkl",
-        "freepikcom":"cookiesFreepikDotcom.pkl",
-        "freepikes":"cookiesFreepikDotes.pkl"
+        "configureUrlSuccesfull": "Se ha actualizado el catalogo de preguntas y respuestas"
     }
 }

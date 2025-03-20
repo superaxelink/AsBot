@@ -47,18 +47,8 @@ async function messageHandler(client, ws, pattern, patternsDict, message) {
     const name = contact.pushname || contact.verifiedName || 'No Name';
     const number = contact.number;
 
-    ////////////////////////////
-    const DEBUG_MODE = true; // Activa o desactiva el modo debug
-    ///////////////////////////
-
     //check if the message matches with some of the patterns for user functions
     const checkedPattern = checkPatternMatch(message.body, patternsDict);
-
-    console.log(message.body);
-
-    //////////////////////////////
-    //if (!DEBUG_MODE && message.fromMe) return; // En modo normal, ignorar mensajes del bot
-    //if (message.fromMe) return; // En modo normal, ignorar mensajes del bot
 
     console.log(`Mensaje recibido de ${message.from}: ${message.body}`);
     ///////////////////////////////////////////

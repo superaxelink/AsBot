@@ -15,12 +15,15 @@ import difflib
 import spacy
 import gspread
 
+class InvalidUrl(Exception):
+    pass
+
 class MessageHandler:
     
     def __init__(self):
         self.status = 0
         #Dictionary for regular expression patterns
-        self.patternsDict = {
+        self.mysql_query_regex_map = {
             'updateId': r'^!updateId (\d+) (\d+)$',
             'updateNickname': r'^!updateNickname (\d+) (\w+)$',
             'updateCreditos': r'^!updateCreditos (\d+) ([0-9]{1,6})$',
@@ -42,7 +45,7 @@ class MessageHandler:
             #'updateFullUser': r'^!updateFullUser (\d+) (\w+) ([0-9]{1,6}) (\w+) (\w+) (\w+) (\d+)$'
         }
         self.generic_message_pair_dict = {}
-        self.generic_default_answer = "No sé la respuesta a eso."
+        self.generic_default_answer = "No sé la respuesta a eso. Te muestro temas con los que puedo ayudarte: "
         #Regex pattern to check for the webpages
         self.patternPages = r"^(https://)?(www\.)?(elements\.)?(freepik|envato)\.(com|es)(/.*)?$"
         # Cargar el modelo de lenguaje en español
@@ -52,6 +55,7 @@ class MessageHandler:
 
         # qa pairs
         self.qa_pairs = {}
+        self.messages = {}
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -60,7 +64,12 @@ class MessageHandler:
         self.qa_file_route = os.path.abspath(os.path.join(script_dir, '../qa-files/qa.json')) 
         self.url_file_route =  os.path.abspath(os.path.join(script_dir, '../qa-files/excel_url.json')) 
 
+        self.vectorizer = TfidfVectorizer()
+
+        self.api_key_google_sheets = 'AIzaSyAMiaX8o1myMZiZFacs8_Ckl2Dyv98Ff4U'
+
         try:
+            self.gc = gspread.api_key(self.api_key_google_sheets)
             # Hay archivo de ruta para inicializar el bot
             if os.path.exists(self.url_file_route):                
                 with open(self.url_file_route, 'r', encoding='utf-8') as f:
@@ -68,7 +77,16 @@ class MessageHandler:
                 self.qa_excel_to_json_url(self.excel_url)
 
             if os.path.exists(self.qa_file_route):
+                #print("El archivo qa existe")
                 self.set_qa_pairs_from_json()
+                # Esto se pone a parte porque quiero que los comandos solo funcionen cuando se escriben exatamente igual
+                self.set_qa_function_key()
+
+            # Cargar el archivo JSON
+            #directorio_actual = os.getcwd()
+            #print("Directorio actual:", directorio_actual)
+            with open("app/messages.json", 'r', encoding='utf-8') as f:
+                self.messages = json.load(f)
 
             if not self.qa_pairs:
                 self.qa_pairs = {
@@ -76,17 +94,16 @@ class MessageHandler:
                     "¿Dónde encuentro la política de privacidad?": "La política de privacidad está en el pie de página.",
                     "!me" : (self.__handle_me, True),
                     "!buy": (self.__handle_buy, False),
-                    "!configureUrl": (self.set_qa_flow,True),
-                    #"updateQA": ""
+                    "!configureUrl": (self.set_qa_flow,True)
                 }
 
             # Convertir preguntas a vectores TF-IDF
-            self.vectorizer = TfidfVectorizer()
             self.questions = list(self.qa_pairs.keys())
+            self.generic_default_answer = self.generic_default_answer + "\n".join(f"{i+1}.- {elem}" for i, elem in enumerate(self.questions))
             self.tfidf_matrix = self.vectorizer.fit_transform(self.questions)
 
-            self.api_key_google_sheets = 'AIzaSyAMiaX8o1myMZiZFacs8_Ckl2Dyv98Ff4U'
-            self.gc = gspread.api_key(self.api_key_google_sheets)
+            #print("Aca tan las preguntas")
+            #print(self.questions)
 
             #create the database connection
             self.connection = cr.create_connection()
@@ -103,45 +120,35 @@ class MessageHandler:
 
     def process_message(self, message, requester_id, nickname):
         try:
-
             # Creo que puedo pasar casi todo esto a get_answer
-            
             #verifies database connection
             self.connection = cr.reconnect(self.connection)
             # check all the update patterns to check for a coincidence
-            pattern_name, patternUpdateQA, matched = self.__check_pattern_match(message)
+            #pattern_name, pattern_mysql_regex, matched = self.__check_pattern_match(message)
 
             ans = self.get_answer(message,requester_id, nickname)
-
-            #pattern = r'configure\s*\{(https?://[^\s{}]+)\}'
-            patternUpdateQA = r'^!updateQA'
-            qa_pattern_match = re.search(patternUpdateQA, message)
-
-            patternUpdateUrl = r'^!updateQA\s*\s*(https?://)?([^\s{}]+)\s*'
-            url_pattern_match = re.search(patternUpdateUrl, message)
 
             if ans is not None:
                 return ans
             if re.match(self.patternPages,message):
                 return self.__handle_file_download_request(requester_id,message)
-            elif pattern_name:
-                return self.__handle_db_requests(requester_id, pattern_name, patternUpdateQA, matched)   
-            # ESTO PA QUE?
-            elif url_pattern_match:
-                url = (url_pattern_match.group(1) or '') + url_pattern_match.group(2)
-                self.qa_excel_to_json_url(url)
-                self.set_qa_pairs_excel()
-                return 'Se ha actualizado el catalogo de preguntas y respuestas'
-            # Si solo queremos actualizar las preguntas respuestas pasamos por default el link del excel
-            # que ya estaba previamente registrado
-            elif qa_pattern_match:
-                self.qa_excel_to_json_url(self.excel_url)
+            #elif pattern_name:
+            #    return self.__handle_db_requests(requester_id, pattern_name, pattern_mysql_regex, matched)
             else: 
                 return self.generic_default_answer
+        except InvalidUrl as e:
+            logging.error(f"Error ocurred: {e}")
+            return self.__get_message("errors","emptyIncorrectUrl")
         except Exception as e: 
             logging.error(f"Error ocurred: {e}")
-            return "Tenemos un problema, intentalo de nuevo mas tarde."
+            return self.__get_message("errors","cantCompleteRequest")
 
+    # Definir una función para obtener mensajes
+    def __get_message(self, desired_category, key):
+        # Accede a la categoría y luego a la clave dentro de ella
+        obtained_category = self.messages.get(desired_category,{})
+        response = obtained_category.get(key, "No se pudo completar la solicitud, intentalo de nuevo mas tarde.")
+        return response
 
     def __handle_db_requests(self,requester_id, pattern_name, pattern, matched):
         try:
@@ -279,7 +286,7 @@ class MessageHandler:
 
     #Accepts the message and check if the message checks with any of the patterns
     def __check_pattern_match(self, message):
-        for name, pattern in self.patternsDict.items():
+        for name, pattern in self.mysql_query_regex_map.items():
             #compile a regular expression into a regular expression object
             compiled_pattern = re.compile(pattern)
             #check if there's a match with the compiled pattern
@@ -317,6 +324,8 @@ class MessageHandler:
 
     # Verificar si el valor es una función y si es callable
     def __get_value_from_dict(self,value,*args):
+        print("Entra a funcion get_value_from_dict")
+        print(value)
         if isinstance(value,tuple) and callable(value[0]):
             if value[1]:  # Si requiere parámetros
                 return value[0](*args)  # Llamar con los parámetros
@@ -353,24 +362,34 @@ class MessageHandler:
             return return_value
         return None
 
+    def set_qa_function_key(self):
+        print("Entra a funcion set_qa_function_key")
+        self.qa_pairs["!me"] = (self.__handle_me, True)
+        self.qa_pairs["!configureUrl"] = (self.set_qa_flow,True)
+
     def set_qa_pairs_from_json(self):
-        try:
-            with open(self.qa_file_route, 'r', encoding='utf-8') as f:
-                self.qa_pairs = json.load(f)
-            
-            self.questions = list(self.qa_pairs.keys())
-            self.tfidf_matrix = self.vectorizer.fit_transform(self.questions)
-        except Exception as e: 
-            logging.error(f"Error ocurred: {e}")
-            return "No se pudo completar la acción. Intentelo de nuevo más tarde."
+        print("Entra a funcion set_qa_pairs_from_json")
+        with open(self.qa_file_route, 'r', encoding='utf-8') as f:
+            self.qa_pairs = json.load(f)
+        
+        self.questions = list(self.qa_pairs.keys())
+        self.generic_default_answer = self.generic_default_answer + "\n".join(f"{i+1}.- {elem}" for i, elem in enumerate(self.questions))
+        self.tfidf_matrix = self.vectorizer.fit_transform(self.questions)
 
     def get_answer(self,question,*args):
-
+        ### CHECAR SI FUNCIONA BIEN LA FUNCION PARA AÑADIR EL URL
         #Expresión regular para separar el comando y la URL
-        patternExcelFileUrl =  r"!([\w]+) '(.+)'"
+        # Mas general para comandos
+        #pattern = r'configure\s*\{(https?://[^\s{}]+)\}'
+        #patternExcelFileUrl =  r"!([\w]+) '(.+)'"
+        # Mas particular, solo para la url
+
+        patternExcelFileUrl = r"(![\w]+) (https?://\S+)"
         excel_file_url_pattern_match = re.match(patternExcelFileUrl, question)
 
-        if excel_file_url_pattern_match:
+        if excel_file_url_pattern_match is not None:
+            ### SI ENTRA ACA
+            print("Entra al if de match url")
             # Aqui question es el patron obtenido, que debe encontrarse en el diccionario de funciones
             question, url = excel_file_url_pattern_match.groups()
             args = args + (url,)
@@ -378,8 +397,19 @@ class MessageHandler:
             value = self.qa_pairs.get(question, self.generic_default_answer)
             # Verificar si el valor es una función y si es callable
             answer = self.__get_value_from_dict(value, *args)
+            ## NI VALUE NI ANSWER DAN UNA RESPUESTA CORRECTA. REGRESAN "No se la respuesta a eso"
             return answer
         
+        patternUpdateQA = r'^!updateQA'
+        qa_pattern_match = re.search(patternUpdateQA, question)
+
+        # Si solo queremos actualizar las preguntas respuestas pasamos por default el link del excel
+        # que ya estaba previamente registrado
+        if qa_pattern_match:
+            print("entra a if de patron qa")
+            self.qa_excel_to_json_url(self.excel_url)
+            return self.__get_message("return_message", "configureUrlSuccesfull")
+
         # Primero intenta con Difflib
         answer = self.__get_answer_with_difflib(question,*args)
         if answer:
@@ -396,58 +426,50 @@ class MessageHandler:
     # Obtiene los datos del excel a traves del url y los transforma en json
     def qa_excel_to_json_url(self,*args):
 
-        try:
-            # la url debe ser el último elemento
-            url = args[-1] if args else None
-            if not url:
-                raise ValueError("Se esperaba al menos un argumento, pero no se recibió ninguno.")
-            sht = self.gc.open_by_url(url)
-            worksheets = sht.worksheets()
-            # Solo tomamos la primera hoja
-            sheet = worksheets[0]
-            sheet_data = sheet.get_all_values()
-            sheet_data_list = [row[:2] for row in  sheet_data]
-            self.qa_pairs = {sublista[0]: sublista[1] for sublista in sheet_data_list}
+        # la url debe ser el último elemento
+        print("entra a la funcion de qa_excel_to_json_url")
+        url = args[-1] if args else None
+        if not url:
+            raise InvalidUrl(self.__get_message("errors","noArgumentsResponse"))
+        sht = self.gc.open_by_url(url)
+        worksheets = sht.worksheets()
+        # Solo tomamos la primera hoja
+        sheet = worksheets[0]
+        sheet_data = sheet.get_all_values()
+        sheet_data_list = [row[:2] for row in  sheet_data]
+        self.qa_pairs = {sublista[0]: sublista[1] for sublista in sheet_data_list}
 
-            # Crea el folder sino existe, si ya existe no hace nada
-            os.makedirs(self.qa_directory_route, exist_ok=True)
+        # Crea el folder sino existe, si ya existe no hace nada
+        os.makedirs(self.qa_directory_route, exist_ok=True)
 
-            with open(self.qa_file_route,'w', encoding='utf-8') as f:
-                json.dump(self.qa_pairs, f, ensure_ascii=False, indent=4)
-        except ValueError as e:
-            logging.error(f"Error ocurred: {e}")
-            return "Url vacia o incorrecta."            
-        except Exception as e: 
-            logging.error(f"Error ocurred: {e}")
-            return "No se pudo completar la acción. Intentelo de nuevo más tarde."
+        with open(self.qa_file_route,'w', encoding='utf-8') as f:
+            json.dump(self.qa_pairs, f, ensure_ascii=False, indent=4)
 
     def set_excel_url(self,*args):
-        try:
-            if os.path.exists(self.url_file_route):
-                os.remove(self.url_file_route)
+        print("Entra a funcion set_excel_url")
+        if os.path.exists(self.url_file_route):
+            os.remove(self.url_file_route)
 
-            # la url debe ser el último elemento
-            url = args[-1] if args else None
-            if not url:
-                raise ValueError("Se esperaba al menos un argumento, pero no se recibió ninguno.")
+        # la url debe ser el último elemento
+        url = args[-1] if args else None
+        if not url:
+            raise InvalidUrl(self.__get_message("errors","noArgumentsResponse"))
+        
+        self.excel_url = url
+        data = {"url" : self.excel_url}
 
-            self.excel_url = url
-            data = {"url" : self.excel_url}
-
-            with open(self.url_file_route, 'r', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-                #self.qa_pairs = json.load(f)
-        except ValueError as e:
-            logging.error(f"Error ocurred: {e}")
-            return "Url vacia o incorrecta."         
-        except Exception as e: 
-            logging.error(f"Error ocurred: {e}")
-            return "No se pudo completar la acción. Intentelo de nuevo más tarde."
+        #with open(self.url_file_route, 'r', encoding='utf-8') as f:
+        with open(self.url_file_route, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
     def set_qa_flow(self,*args):
+        print("Entra a funcion set_qa_flow")
         self.set_excel_url(*args)
         self.qa_excel_to_json_url(*args)
         self.set_qa_pairs_from_json()
+        self.set_qa_function_key()
+        print("Configuration complete")
+        return self.__get_message("return_message","configureUrlSuccesfull")
 
 ###########################################################################
 
